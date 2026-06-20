@@ -232,7 +232,7 @@ def reset_pose_uniform(
     max_retries: int = 100,
 ):
     """Reset asset root state to a random position and velocity uniformly within the given ranges.
-    Adapted from isaaclab.envs.mdp.events.reset_root_state_uniform
+    Adapted from isaaclab.envs.mdp.reset_root_state_uniform
 
     This function randomizes the root position and velocity of the assets in the asset_cfg list.
     If reset_to_default_otherwise is True, assets NOT in the asset_cfg list are reset to their default pose as specified in the scene configuration.
@@ -373,7 +373,7 @@ def reset_pose_to_default(
 
     Only resets assets that are in the asset_cfg list.
     Every other asset is left unchanged.
-    Adapted from isaaclab.envs.mdp.events.reset_scene_to_default.
+    Adapted from isaaclab.envs.mdp.reset_scene_to_default.
 
     Args:
         env: The environment instance.

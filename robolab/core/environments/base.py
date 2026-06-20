@@ -161,20 +161,24 @@ class RobolabDefaultEnvCfg(ManagerBasedRLEnvCfg):
         self.scene.env_spacing = 2.0
         self.sim.use_fabric = True
 
-        # PhysX settings
-        self.sim.physx.gpu_temp_buffer_capacity = 2**30
-        self.sim.physx.gpu_heap_capacity = 2**30
-        self.sim.physx.gpu_collision_stack_size = 2**30
-        self.sim.physx.enable_ccd = True
-        self.sim.physx.contact_offset = 0.02
-        self.sim.physx.rest_offset = 0.01
-        self.sim.physx.num_position_iterations = 32
-        self.sim.physx.num_velocity_iterations = 1
-        self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.max_depenetration_velocity = 100.0
-        self.sim.physx.solver_type = 1
-        self.sim.physx.num_threads = 4
-        self.sim.physx.relaxation = 0.75
-        self.sim.physx.warm_start = 0.4
-        self.sim.physx.shape_collision_distance = 0.0
-        self.sim.physx.shape_collision_margin = 0.0
+        # PhysX settings.
+        # Isaac Lab 3.0 / Isaac Sim 6.0 removed ``SimulationCfg.physx`` — the new physics
+        # manager auto-manages GPU buffers and solver settings. Only apply these on older
+        # Isaac Lab versions where the attribute still exists.
+        if hasattr(self.sim, "physx"):
+            self.sim.physx.gpu_temp_buffer_capacity = 2**30
+            self.sim.physx.gpu_heap_capacity = 2**30
+            self.sim.physx.gpu_collision_stack_size = 2**30
+            self.sim.physx.enable_ccd = True
+            self.sim.physx.contact_offset = 0.02
+            self.sim.physx.rest_offset = 0.01
+            self.sim.physx.num_position_iterations = 32
+            self.sim.physx.num_velocity_iterations = 1
+            self.sim.physx.bounce_threshold_velocity = 0.2
+            self.sim.physx.max_depenetration_velocity = 100.0
+            self.sim.physx.solver_type = 1
+            self.sim.physx.num_threads = 4
+            self.sim.physx.relaxation = 0.75
+            self.sim.physx.warm_start = 0.4
+            self.sim.physx.shape_collision_distance = 0.0
+            self.sim.physx.shape_collision_margin = 0.0

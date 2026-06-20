@@ -25,7 +25,9 @@ from isaaclab.assets import Articulation, AssetBase, DeformableObject, RigidObje
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
 from isaaclab.utils.math import transform_points
-from isaacsim.core.prims import XFormPrim
+# Isaac Sim 6.0 / Isaac Lab 3.0: scene.extras now holds isaaclab FrameView objects
+# (BaseFrameView subclasses) instead of the deprecated isaacsim.core.prims.XFormPrim.
+from isaaclab.sim.views import BaseFrameView
 from pxr import Gf, Usd, UsdGeom
 
 import robolab.constants
@@ -109,7 +111,7 @@ class WorldState:
         return entities
 
     @property
-    def extras(self) -> dict[str, XFormPrim]:
+    def extras(self) -> dict[str, BaseFrameView]:
         return self.env.scene.extras
 
     @property
@@ -355,7 +357,7 @@ class WorldState:
         """Get USD prim for a body in a specific env. Used internally for init-time
         geometry caching and visualization. Not called per-step."""
         body = self.get_body(body_name)
-        if isinstance(body, XFormPrim):
+        if isinstance(body, BaseFrameView):
             idx = min(env_id, len(body.prims) - 1)
             return body.prims[idx]
         prim_path = body.cfg.prim_path
@@ -385,12 +387,15 @@ class WorldState:
                 quat = body.data.root_quat_w.clone().detach()  # (N, 4)
                 if is_relative:
                     pos = pos - self.env.scene.env_origins  # (N, 3)
-        elif isinstance(body, XFormPrim):
+        elif isinstance(body, BaseFrameView):
             num_prims = len(body._prim_paths) if hasattr(body, '_prim_paths') else body.count
             if env_id is not None:
                 # Clamp index — static extras may have fewer prims than envs
                 idx = min(env_id, num_prims - 1)
                 positions, orientations = body.get_world_poses(indices=[idx])
+                # Isaac Lab 3.0 FrameView returns ProxyArray wrappers; get torch views.
+                if hasattr(positions, "torch"):
+                    positions, orientations = positions.torch, orientations.torch
                 pos = positions[0]
                 quat = orientations[0]
                 if not isinstance(pos, torch.Tensor):
@@ -406,6 +411,9 @@ class WorldState:
                 # Static extras may have fewer prims than num_envs (e.g., shelf).
                 # In that case, compute relative pose from prim 0 and replicate.
                 positions, orientations = body.get_world_poses()
+                # Isaac Lab 3.0 FrameView returns ProxyArray wrappers; get torch views.
+                if hasattr(positions, "torch"):
+                    positions, orientations = positions.torch, orientations.torch
                 if num_prims >= self.env.num_envs:
                     # One prim per env — straightforward
                     all_pos, all_quat = [], []
@@ -454,7 +462,7 @@ class WorldState:
             env_id: None → (num_envs, 6), int → (6,)
         """
         body = self.get_body(body_name)
-        if isinstance(body, XFormPrim):
+        if isinstance(body, BaseFrameView):
             if env_id is None:
                 return torch.zeros(self.env.num_envs, 6, dtype=torch.float32, device=self.env.device)
             return torch.zeros(6, dtype=torch.float32, device=self.env.device)
