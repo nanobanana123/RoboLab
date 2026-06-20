@@ -24,6 +24,36 @@ from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
+
+def _aim_cameras_at_workspace(env, target=(0.5, 0.0, 0.05)):
+    """Re-aim policy cameras at the workspace (Isaac Sim 6.0 / Isaac Lab 3.0 fix).
+
+    Under Isaac Lab 3.0 the camera ``OffsetCfg`` orientations render mis-rolled / wrongly
+    aimed (the over-shoulder/head cams come out rotated, the wrist cam looks away from the
+    grasp). This re-aims every camera sensor from its current world position toward the
+    table workspace using ``set_world_poses_from_view`` (convention-free, up = +Z), giving
+    the policy upright, correctly-framed observations. Fixed exterior cameras keep this pose
+    for the whole episode; the wrist cam (a child of the gripper) is re-aimed each reset.
+    """
+    try:
+        from isaaclab.sensors import Camera, TiledCamera
+    except Exception:
+        return
+    try:
+        base = torch.tensor([target], device=env.device, dtype=torch.float32)
+        origins = getattr(env.scene, "env_origins", None)
+        for _name, s in env.scene.sensors.items():
+            if not isinstance(s, (Camera, TiledCamera)):
+                continue
+            eye = s.data.pos_w[:, :3].clone()
+            tgt = base.repeat(eye.shape[0], 1)
+            if origins is not None:
+                tgt = tgt + origins[: eye.shape[0]]
+            s.set_world_poses_from_view(eye, tgt)
+    except Exception as e:  # never let a camera-aim failure break the episode
+        logger.warning(f"[camera-aim] re-aim skipped: {e}")
+
+
 class TimingStats:
     """Simple timing utility for profiling code sections."""
 
@@ -85,6 +115,12 @@ def run_episode(env, env_cfg, episode, client: InferenceClient, *, headless=Fals
 
     obs, _ = env.reset()
     obs, _ = env.reset()
+    # Isaac Sim 6.0 / Isaac Lab 3.0: the policy cameras' OffsetCfg orientations render
+    # mis-rolled / mis-aimed under the 3.0 camera convention. Re-aim them at the workspace
+    # so the policy receives upright, correctly-framed observations. The fixed exterior
+    # cameras persist across the episode; the gripper-mounted wrist camera is re-aimed here
+    # (its offset is also corrected at the config level for full-episode tracking).
+    _aim_cameras_at_workspace(env)
     max_steps = env.max_episode_length
     video_fps = 1 / (env_cfg.sim.render_interval * env_cfg.sim.dt) # Hz
     instruction = env_cfg.instruction
