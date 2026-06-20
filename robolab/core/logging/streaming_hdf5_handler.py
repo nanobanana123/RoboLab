@@ -386,12 +386,16 @@ class StreamingHDF5DatasetFileHandler(DatasetFileHandlerBase):
                     key_group, sub_key, sub_value, datasets_cache
                 )
         else:
-            # Isaac Lab 3.0 may hand back plain lists/ndarrays (not torch tensors)
-            # for some recorded terms; handle both.
-            if hasattr(value, "cpu"):
-                np_data = value.cpu().numpy()
-            else:
-                np_data = np.asarray(value)
+            # Isaac Lab 3.0 may hand back torch tensors, plain ndarrays, or lists/tuples
+            # that contain CUDA tensors. Move everything to host before np.asarray, which
+            # otherwise calls Tensor.__array__ on a CUDA tensor and raises.
+            def _to_host(v):
+                if hasattr(v, "cpu"):
+                    return v.cpu().numpy()
+                if isinstance(v, (list, tuple)):
+                    return [_to_host(x) for x in v]
+                return v
+            np_data = np.asarray(_to_host(value))
             cache_key = f"{group.name}/{key}"
 
             if cache_key in datasets_cache:
