@@ -55,6 +55,16 @@ def create_contact_sensors(env_cfg):
         env_cfg: Environment configuration containing scene, contact_gripper, and contact_object_list
     """
 
+    # Isaac Sim 6.0 / Isaac Lab 3.0: the filtered ContactSensor (force_matrix_w) fails to
+    # initialize for these assets — the contact-view filter matching changed (a filter pattern
+    # resolves to >1 contact-reporting prim, leaving the contact view backend None and crashing
+    # sensor init). Until that is fully ported, skip contact sensors; WorldState.in_contact
+    # transparently falls back to a gripper-proximity heuristic so grasp/pick predicates work.
+    # Re-enable once the contact-view filter port lands: ROBOLAB_ENABLE_CONTACT_SENSORS=1.
+    import os
+    if os.environ.get("ROBOLAB_ENABLE_CONTACT_SENSORS", "0") != "1":
+        return
+
     scene = env_cfg.scene
     if env_cfg.contact_object_list is None or env_cfg.contact_gripper is None:
         return

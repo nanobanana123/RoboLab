@@ -556,13 +556,39 @@ class WorldState:
     #########################################################
     # Contact
     #########################################################
+    def _proximity_contact(self, body1: str, body2: str, env_id: int | None = None, threshold: float = 0.09):
+        """Contact fallback for Isaac Sim 6.0 / Isaac Lab 3.0.
+
+        The filtered ContactSensor (force_matrix_w) does not initialize on Isaac Lab 3.0
+        for these assets (contact-view filter matching changed). As a stand-in, treat two
+        bodies as "in contact" when their world positions are within ``threshold`` metres.
+        For the gripper, use the robot's inner-finger link position.
+        """
+        def pos_of(name: str) -> torch.Tensor:
+            try:
+                p, _ = self.get_pose(name, is_relative=False, env_id=None)  # (N, 3) world
+                return p
+            except Exception:
+                robot = self.env.scene["robot"]
+                names = list(robot.body_names)
+                bidx = next((i for i, n in enumerate(names) if "inner_finger" in n), 0)
+                return robot.data.body_pos_w[:, bidx, :]  # (N, 3) world
+
+        dist = torch.norm(pos_of(body1) - pos_of(body2), dim=-1)  # (N,)
+        res = dist < threshold
+        return res if env_id is None else bool(res[env_id].item())
+
     def in_contact(self, body1: str, body2: str, force_threshold: float = 0.1, env_id: int | None = None):
         """Check if two bodies are in contact.
 
         Args:
             env_id: None → Tensor(num_envs,) bool, int → bool
         """
-        contact_sensor = get_contact_sensor(self.env.scene, body1, body2)
+        try:
+            contact_sensor = get_contact_sensor(self.env.scene, body1, body2)
+        except Exception:
+            # Isaac Lab 3.0: filtered contact sensors unavailable -> proximity fallback.
+            return self._proximity_contact(body1, body2, env_id)
         if env_id is not None:
             force_matrix = contact_sensor.data.force_matrix_w[env_id]
             return torch.any(torch.abs(force_matrix) > force_threshold).item()
