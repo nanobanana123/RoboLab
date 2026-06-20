@@ -386,7 +386,12 @@ class StreamingHDF5DatasetFileHandler(DatasetFileHandlerBase):
                     key_group, sub_key, sub_value, datasets_cache
                 )
         else:
-            np_data = value.cpu().numpy()
+            # Isaac Lab 3.0 may hand back plain lists/ndarrays (not torch tensors)
+            # for some recorded terms; handle both.
+            if hasattr(value, "cpu"):
+                np_data = value.cpu().numpy()
+            else:
+                np_data = np.asarray(value)
             cache_key = f"{group.name}/{key}"
 
             if cache_key in datasets_cache:
